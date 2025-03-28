@@ -4,19 +4,19 @@ import {
   SignUpWithUsernameAndPasswordError,
   type LogInWithUsernameAndPasswordResult,
   type SignUpWithUsernameAndPasswordResult,
-} from "./authentication-types.js"; 
-import { prismaClient } from "../../extras/prisma.js"; 
+} from "./authentication-types.js";
 import jwt from "jsonwebtoken";
-import { jwtSecretKey } from "../../environment.js"; 
+import { prismaClient } from "../../extras/prisma.js";
+import { jwtSecretKey } from "../../environment.js";
 
 export const signUpWithUsernameAndPassword = async (parameters: {
-  email: string; // Changed from username to email
+  username: string;
   password: string;
   name?: string;
 }): Promise<SignUpWithUsernameAndPasswordResult> => {
   // Check if user already exists
   const isUserExistingAlready = await checkIfUserExistsAlready({
-    email: parameters.email,
+    username: parameters.username,
   });
 
   if (isUserExistingAlready) {
@@ -31,16 +31,16 @@ export const signUpWithUsernameAndPassword = async (parameters: {
   // Create new user
   const user = await prismaClient.user.create({
     data: {
-      email: parameters.email, // Changed from username to email
+      username: parameters.username,
       password: passwordHash,
-      name: parameters.name ?? "",
+      name: parameters.name,
     },
   });
 
   // Generate JWT token
   const token = createJWToken({
     id: user.id,
-    email: user.email, // Changed from username to email
+    username: user.username,
   });
 
   return {
@@ -50,7 +50,7 @@ export const signUpWithUsernameAndPassword = async (parameters: {
 };
 
 export const logInWithUsernameAndPassword = async (parameters: {
-  email: string; // Changed from username to email
+  username: string;
   password: string;
 }): Promise<LogInWithUsernameAndPasswordResult> => {
   // Create password hash
@@ -58,21 +58,22 @@ export const logInWithUsernameAndPassword = async (parameters: {
     password: parameters.password,
   });
 
-  // Find user by email
+  // Find user
   const user = await prismaClient.user.findUnique({
     where: {
-      email: parameters.email, // Changed from username to email
+      username: parameters.username,
+      password: passwordHash,
     },
   });
 
-  if (!user || user.password !== passwordHash) { 
+  if (!user) {
     throw LogInWtihUsernameAndPasswordError.INCORRECT_USERNAME_OR_PASSWORD;
   }
 
   // Generate JWT token
   const token = createJWToken({
     id: user.id,
-    email: user.email, // Changed from username to email
+    username: user.username,
   });
 
   return {
@@ -81,11 +82,11 @@ export const logInWithUsernameAndPassword = async (parameters: {
   };
 };
 
-const createJWToken = (parameters: { id: string; email: string }): string => {
+const createJWToken = (parameters: { id: string; username: string }): string => {
   const jwtPayload: jwt.JwtPayload = {
     iss: "hackernews-server",
     sub: parameters.id,
-    email: parameters.email, // Changed from username to email
+    username: parameters.username,
   };
 
   return jwt.sign(jwtPayload, jwtSecretKey, {
@@ -93,10 +94,10 @@ const createJWToken = (parameters: { id: string; email: string }): string => {
   });
 };
 
-const checkIfUserExistsAlready = async (parameters: { email: string }): Promise<boolean> => {
+const checkIfUserExistsAlready = async (parameters: { username: string }): Promise<boolean> => {
   const existingUser = await prismaClient.user.findUnique({
     where: {
-      email: parameters.email, // Changed from username to email
+      username: parameters.username,
     },
   });
 
