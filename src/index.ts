@@ -1,23 +1,56 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const authRoutes = require('./src/routes/authRoutes');
-const userRoutes = require('./src/routes/userRoutes');
-const postRoutes = require('./src/routes/postRoutes');
-const likeRoutes = require('./src/routes/likeRoutes');
-const commentRoutes = require('./src/routes/commentRoutes');
+// src/index.ts
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { prismaClient } from "./extras/prisma.js";
+import { env } from "process";
+import { allRoutes } from "./routes/routes.js";
 
-dotenv.config();
-const app = express();
-app.use(express.json());
-app.use(cors());
+const app = new Hono();
 
-// Routes
-app.use('/auth', authRoutes);
-app.use('/users', userRoutes);
-app.use('/posts', postRoutes);
-app.use('/likes', likeRoutes);
-app.use('/comments', commentRoutes);
+// Mount all routes
+app.route("/", allRoutes);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Error handling middleware
+app.onError((err, c) => {
+  console.error(`${err}`);
+  return c.json(
+    {
+      message: "Internal Server Error",
+      error: env.NODE_ENV === "development" ? err.message : undefined,
+    },
+    500
+  );
+});
+
+// Not found handler
+app.notFound((c) => {
+  return c.json(
+    {
+      message: "Not Found",
+    },
+    404
+  );
+});
+
+// Start the server
+const port = env.PORT ? parseInt(env.PORT.toString(), 10) : 3000;
+
+console.log(`Server is running on port ${port}`);
+
+serve({
+  fetch: app.fetch,
+  port,
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM signal received: closing server");
+  await prismaClient.$disconnect();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("SIGINT signal received: closing server");
+  await prismaClient.$disconnect();
+  process.exit(0);
+});
