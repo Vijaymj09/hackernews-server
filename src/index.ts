@@ -1,4 +1,3 @@
-// src/index.ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { prismaClient } from "./extras/prisma.js";
